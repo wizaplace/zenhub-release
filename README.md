@@ -18,3 +18,11 @@ To create a release, run the command with all the arguments:
 ```
 ./zenhub-release release wizaplace/wizaplace 1.17.04.13.0 --pipeline="À déployer" --github-token=... --zenhub-token=...
 ```
+
+You must provide:
+
+- the repository name
+- the release name (tag name)
+- the pipeline containing the issues that are going in the next release (with `--pipeline=`)
+- a GitHub token with `--github-token=`
+- a ZenHub token with `--zenhub-token=`
