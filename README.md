@@ -15,7 +15,7 @@ composer install
 
 To create a release, run the command with all the arguments:
 
-```
+```bash
 ./zenhub-release release wizaplace/wizaplace 1.17.04.13.0 --pipeline="À déployer" --github-token=... --zenhub-token=...
 ```
 
