@@ -41,9 +41,22 @@ $app->command(
             ]);
             $issueInfo = json_decode((string) $response->getBody(), true);
 
-            $markdown[] = sprintf('#%d: %s', $issueNumber, $issueInfo['title']);
+            $markdown[] = sprintf('- #%d: %s', $issueNumber, $issueInfo['title']);
             $output->writeln(sprintf('<info>#%d</info>: %s', $issueNumber, $issueInfo['title']));
         }
+        $events = getEventsSinceLastRelease($http, $githubToken, $repository, $releaseName);
+
+        $markdown[] = '<details><summary>PRs and rogue commits</summary>';
+        $output->writeln('<comment>PRs and rogue commits:</comment>');
+        foreach ($events['PRs'] as $PR) {
+            $markdown[] = sprintf('- #%d: %s', $PR['number'], $PR['title']);
+            $output->writeln(sprintf('<info>%s</info>: %s', $PR['html_url'], $PR['title']));
+        }
+        foreach ($events['commits'] as $commit) {
+            $markdown[] = sprintf('- %s: %s', $commit['sha'], $commit['commit']['message']);
+            $output->writeln(sprintf('<info>%s</info>: %s', $commit['html_url'], $commit['commit']['message']));
+        }
+        $markdown[] = '</details>';
 
         // Create the release
         $http->request('POST', "https://api.github.com/repos/$repository/releases", [
@@ -94,6 +107,49 @@ function findDeployPipelineInBoard(array $board, $deployPipelineName)
         return $pipeline;
     }
     throw new Exception("Pipeline $deployPipelineName not found");
+}
+
+function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, $tag) {
+    $response = $http->request('GET', "https://api.github.com/repos/$repositoryName/releases/latest", [
+        'headers' => [
+            'Authorization' => 'token ' . $githubToken,
+        ],
+    ]);
+
+    $latestRelease = json_decode((string) $response->getBody(), true);
+
+    $response = $http->request('GET', "https://api.github.com/repos/$repositoryName/compare/{$latestRelease['tag_name']}...$tag", [
+        'headers' => [
+            'Authorization' => 'token ' . $githubToken,
+        ],
+    ]);
+    $commits = json_decode((string) $response->getBody(), true)['commits'];
+
+    $result = [
+        'PRs' => [],
+        'commits' => [],
+    ];
+
+    foreach ($commits as $commit) {
+        $response = $http->request('GET', "https://api.github.com/search/issues?q={$commit['sha']}  type:pr is:merged base:master", [
+            'headers' => [
+                'Authorization' => 'token '.$githubToken,
+            ],
+        ]);
+
+        $PRs = json_decode((string) $response->getBody(), true);
+        if ($PRs['total_count'] > 0) {
+            $result['PRs'] = array_merge($result['PRs'], $PRs['items']);
+        } else {
+            $result['commits'][] = $commit;
+        }
+    }
+
+    foreach ($result as $k => $v) {
+        $result[$k] = array_intersect_key($v, array_unique(array_column($v, 'url')));
+    }
+
+    return $result;
 }
 
 function checkReleaseDoesNotExist(Client $http, $githubToken, $repositoryName, $releaseName)
