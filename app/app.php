@@ -129,7 +129,7 @@ function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, 
 
         $commit = array_pop($commits);
 
-        $PRs = githubAPICall($http, $githubToken, "https://api.github.com/search/issues?q={$commit['sha']} type:pr base:master repo:{$repositoryName}");
+        $PRs = githubAPICall($http, $githubToken, "https://api.github.com/search/issues?q={$commit['sha']} type:pr is:merged base:master repo:{$repositoryName}");
         if ($PRs['total_count'] > 0) {
             foreach($PRs['items'] as $PR) {
                 $PRdetails = githubAPICall($http, $githubToken, $PR['pull_request']['url']);
