@@ -77,14 +77,15 @@ $app->command(
 
 $app->run();
 
+function githubAPICall(Client $http, $githubToken, $url, $params = [], $method = 'GET') {
+    $params['headers']['Authorization'] = 'token ' . $githubToken;
+    $response = $http->request($method, $url, $params);
+    return json_decode((string) $response->getBody(), true);
+}
+
 function getRepositoryId(Client $http, $githubToken, $repositoryName)
 {
-    $response = $http->request('GET', "https://api.github.com/repos/$repositoryName", [
-        'headers' => [
-            'Authorization' => 'token ' . $githubToken,
-        ],
-    ]);
-    $repositoryInfo = json_decode((string) $response->getBody(), true);
+    $repositoryInfo = githubAPICall($http, $githubToken, "https://api.github.com/repos/$repositoryName");
     return $repositoryInfo['id'];
 }
 
@@ -110,37 +111,39 @@ function findDeployPipelineInBoard(array $board, $deployPipelineName)
 }
 
 function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, $tag) {
-    $response = $http->request('GET', "https://api.github.com/repos/$repositoryName/releases/latest", [
-        'headers' => [
-            'Authorization' => 'token ' . $githubToken,
-        ],
-    ]);
+    $latestRelease = githubAPICall($http, $githubToken, "https://api.github.com/repos/$repositoryName/releases/latest");
 
-    $latestRelease = json_decode((string) $response->getBody(), true);
-
-    $response = $http->request('GET', "https://api.github.com/repos/$repositoryName/compare/{$latestRelease['tag_name']}...$tag", [
-        'headers' => [
-            'Authorization' => 'token ' . $githubToken,
-        ],
-    ]);
-    $commits = json_decode((string) $response->getBody(), true)['commits'];
+    $commits = githubAPICall($http, $githubToken, "https://api.github.com/repos/$repositoryName/compare/{$latestRelease['tag_name']}...$tag")['commits'];
+    $commitsSHA = array_flip(array_column($commits, 'sha'));
 
     $result = [
         'PRs' => [],
         'commits' => [],
     ];
 
-    foreach ($commits as $commit) {
-        sleep(2);
-        $response = $http->request('GET', "https://api.github.com/search/issues?q={$commit['sha']} type:pr is:merged base:master repo:{$repositoryName}", [
-            'headers' => [
-                'Authorization' => 'token '.$githubToken,
-            ],
-        ]);
+    $i = 1;
+    while (!empty($commits)) {
+        if($i % 30 === 0) {
+            sleep(60); // rate limit
+        }
 
-        $PRs = json_decode((string) $response->getBody(), true);
+        $commit = array_pop($commits);
+
+        $PRs = githubAPICall($http, $githubToken, "https://api.github.com/search/issues?q={$commit['sha']} type:pr base:master repo:{$repositoryName}");
         if ($PRs['total_count'] > 0) {
-            $result['PRs'] = array_merge($result['PRs'], $PRs['items']);
+            foreach($PRs['items'] as $PR) {
+                $PRdetails = githubAPICall($http, $githubToken, $PR['pull_request']['url']);
+                $PRcommits = githubAPICall($http, $githubToken, "https://api.github.com/repos/$repositoryName/commits?sha={$PRdetails['head']['sha']}");
+                foreach($PRcommits as $PRcommit) {
+                    if(isset($commitsSHA[$PRcommit['sha']])) {
+                        unset($commits[$commitsSHA[$PRcommit['sha']]]);
+                        unset($commitsSHA[$PRcommit['sha']]);
+                        break;
+                    }
+                }
+
+                $result['PRs'][] = $PR;
+            }
         } else {
             $result['commits'][] = $commit;
         }
@@ -156,11 +159,7 @@ function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, 
 function checkReleaseDoesNotExist(Client $http, $githubToken, $repositoryName, $releaseName)
 {
     try {
-        $http->request('GET', "https://api.github.com/repos/$repositoryName/releases/tags/$releaseName", [
-            'headers' => [
-                'Authorization' => 'token ' . $githubToken,
-            ],
-        ]);
+        githubAPICall($http, $githubToken, "https://api.github.com/repos/$repositoryName/releases/tags/$releaseName");
         throw new Exception("The release $releaseName already exists");
     } catch (ClientException $e) {
         // We should get a 404
