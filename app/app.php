@@ -131,7 +131,8 @@ function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, 
     ];
 
     foreach ($commits as $commit) {
-        $response = $http->request('GET', "https://api.github.com/search/issues?q={$commit['sha']}  type:pr is:merged base:master", [
+        sleep(2);
+        $response = $http->request('GET', "https://api.github.com/search/issues?q={$commit['sha']} type:pr is:merged base:master repo:{$repositoryName}", [
             'headers' => [
                 'Authorization' => 'token '.$githubToken,
             ],
