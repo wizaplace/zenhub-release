@@ -46,7 +46,7 @@ $app->command(
         }
         $events = getEventsSinceLastRelease($http, $githubToken, $repository, $releaseName);
 
-        $markdown[] = '<details><summary>PRs and rogue commits</summary>';
+        $markdown[] = "<details><summary>PRs and rogue commits</summary>\n";
         $output->writeln('<comment>PRs and rogue commits:</comment>');
         foreach ($events['PRs'] as $PR) {
             $markdown[] = sprintf('- #%d: %s', $PR['number'], $PR['title']);
