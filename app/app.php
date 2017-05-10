@@ -123,9 +123,7 @@ function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, 
 
     $i = 1;
     while (!empty($commits)) {
-        if($i % 30 === 0) {
-            sleep(60); // rate limit
-        }
+        sleep(2)
 
         $commit = array_pop($commits);
 
