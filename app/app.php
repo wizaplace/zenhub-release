@@ -123,7 +123,7 @@ function getEventsSinceLastRelease(Client $http, $githubToken, $repositoryName, 
 
     $i = 1;
     while (!empty($commits)) {
-        sleep(2)
+        sleep(2);
 
         $commit = array_pop($commits);
 
